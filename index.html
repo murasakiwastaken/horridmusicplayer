@@ -36,6 +36,7 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             display: flex;
             flex-direction: column;
+            position: relative;
         }
         
         .header {
@@ -43,6 +44,7 @@
             text-align: center;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             position: relative;
+            z-index: 10;
         }
         
         .app-title {
@@ -73,6 +75,8 @@
             gap: 25px;
             flex: 1;
             overflow-y: auto;
+            position: relative;
+            z-index: 5;
         }
         
         .album-art {
@@ -90,6 +94,7 @@
             height: 100%;
             object-fit: cover;
             display: block;
+            transition: opacity 0.5s ease;
         }
         
         .track-info {
@@ -229,6 +234,7 @@
             margin-right: 15px;
             background: linear-gradient(45deg, #1a1a1a, #2a2a2a);
             overflow: hidden;
+            position: relative;
         }
         
         .track-item-img img {
@@ -439,31 +445,137 @@
             opacity: 0;
         }
         
-        /* Loading spinner */
-        .loading {
+        /* Loading animations */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+        
+        .album-loading {
+            width: 200px;
+            height: 200px;
+            border-radius: 12px;
+            background: linear-gradient(45deg, #1a1a1a, #2a2a2a);
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        
+        .album-loading::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
             height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            animation: loading 2s infinite;
         }
         
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(255, 255, 255, 0.1);
-            border-top: 3px solid #ff2a6d;
+        .loading-text {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.7);
+            text-align: center;
+            max-width: 80%;
+            line-height: 1.6;
+        }
+        
+        .loading-dots {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        .dot {
+            width: 12px;
+            height: 12px;
+            background: #ff2a6d;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            margin: 0 5px;
+            animation: dotPulse 1.5s infinite ease-in-out;
         }
         
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .dot:nth-child(2) {
+            animation-delay: 0.2s;
+            background: #00d4ff;
+        }
+        
+        .dot:nth-child(3) {
+            animation-delay: 0.4s;
+            background: #ff2a6d;
+        }
+        
+        @keyframes loading {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        @keyframes dotPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.7; }
+        }
+        
+        .slow-fade-in {
+            animation: slowFadeIn 1.5s ease-in-out forwards;
+        }
+        
+        @keyframes slowFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* Background visualizer */
+        .visualizer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            opacity: 0.1;
+        }
+        
+        .bar {
+            position: absolute;
+            bottom: 0;
+            width: 10px;
+            background: linear-gradient(to top, #ff2a6d, #00d4ff);
+            border-radius: 5px 5px 0 0;
+            animation: visualizer 1.5s infinite ease-in-out;
+        }
+        
+        @keyframes visualizer {
+            0%, 100% { height: 5%; }
+            50% { height: 90%; }
         }
     </style>
 </head>
 <body>
     <div class="app-container">
+        <!-- Background visualizer -->
+        <div class="visualizer" id="visualizer"></div>
+        
+        <!-- Loading overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="album-loading"></div>
+            <div class="loading-text">Preparing your horribly good music experience...</div>
+            <div class="loading-dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+        
         <!-- Home Screen -->
         <div class="home-screen">
             <div class="welcome-text">
@@ -511,7 +623,7 @@
             
             <div class="now-playing">
                 <div class="album-art">
-                    <img id="albumArtImg" src="" alt="Album Art">
+                    <img id="albumArtImg" src="" alt="Album Art" class="slow-fade-in">
                 </div>
                 
                 <div class="track-info">
@@ -558,7 +670,7 @@
             </div>
             
             <div class="playlist">
-                <div class="playlist-title">Horrid Playlist</div>
+                <div class="playlist-title">Horrid Playlist (50 Songs)</div>
                 <div id="trackList">
                     <!-- Tracks will be loaded here -->
                 </div>
@@ -570,62 +682,58 @@
     </div>
 
     <script>
-        // Predefined playlist with real song data and YouTube IDs
+        // Large playlist with 50 songs
         const playlist = [
-            {
-                id: 1,
-                title: "Blinding Lights",
-                artist: "The Weeknd",
-                album: "After Hours",
-                duration: 202, // seconds
-                cover: "https://e-cdns-images.dzcdn.net/images/cover/4bcdb89f9c6e0d5f9b5b9d5a5b5e5d5f/500x500-000000-80-0-0.jpg",
-                youtubeId: "4NRXx6U8ABQ"
-            },
-            {
-                id: 2,
-                title: "Save Your Tears",
-                artist: "The Weeknd",
-                album: "After Hours",
-                duration: 215,
-                cover: "https://e-cdns-images.dzcdn.net/images/cover/4bcdb89f9c6e0d5f9b5b9d5a5b5e5d5f/500x500-000000-80-0-0.jpg",
-                youtubeId: "XXYlFuWEuKI"
-            },
-            {
-                id: 3,
-                title: "Levitating",
-                artist: "Dua Lipa",
-                album: "Future Nostalgia",
-                duration: 203,
-                cover: "https://e-cdns-images.dzcdn.net/images/cover/5e0b2d2d2d2d2d2d2d2d2d2d2d2d2d2d/500x500-000000-80-0-0.jpg",
-                youtubeId: "TUVcZfQe-Kw"
-            },
-            {
-                id: 4,
-                title: "good 4 u",
-                artist: "Olivia Rodrigo",
-                album: "SOUR",
-                duration: 178,
-                cover: "https://e-cdns-images.dzcdn.net/images/cover/6e3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d/500x500-000000-80-0-0.jpg",
-                youtubeId: "gNi_6U5Pm_o"
-            },
-            {
-                id: 5,
-                title: "Stay",
-                artist: "The Kid LAROI, Justin Bieber",
-                album: "F*CK LOVE 3",
-                duration: 141,
-                cover: "https://e-cdns-images.dzcdn.net/images/cover/1c7a1d3d3d3d3d3d3d3d3d3d3d3d3d3d/500x500-000000-80-0-0.jpg",
-                youtubeId: "kTJczUoc26U"
-            },
-            {
-                id: 6,
-                title: "Montero",
-                artist: "Lil Nas X",
-                album: "Montero",
-                duration: 137,
-                cover: "https://e-cdns-images.dzcdn.net/images/cover/7c8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a/500x500-000000-80-0-0.jpg",
-                youtubeId: "6swmTBVI83k"
-            }
+            { id: 1, title: "Blinding Lights", artist: "The Weeknd", album: "After Hours", duration: 202, cover: "https://e-cdns-images.dzcdn.net/images/cover/4bcdb89f9c6e0d5f9b5b9d5a5b5e5d5f/500x500-000000-80-0-0.jpg", youtubeId: "4NRXx6U8ABQ" },
+            { id: 2, title: "Save Your Tears", artist: "The Weeknd", album: "After Hours", duration: 215, cover: "https://e-cdns-images.dzcdn.net/images/cover/4bcdb89f9c6e0d5f9b5b9d5a5b5e5d5f/500x500-000000-80-0-0.jpg", youtubeId: "XXYlFuWEuKI" },
+            { id: 3, title: "Levitating", artist: "Dua Lipa", album: "Future Nostalgia", duration: 203, cover: "https://e-cdns-images.dzcdn.net/images/cover/5e0b2d2d2d2d2d2d2d2d2d2d2d2d2d2d/500x500-000000-80-0-0.jpg", youtubeId: "TUVcZfQe-Kw" },
+            { id: 4, title: "good 4 u", artist: "Olivia Rodrigo", album: "SOUR", duration: 178, cover: "https://e-cdns-images.dzcdn.net/images/cover/6e3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d/500x500-000000-80-0-0.jpg", youtubeId: "gNi_6U5Pm_o" },
+            { id: 5, title: "Stay", artist: "The Kid LAROI, Justin Bieber", album: "F*CK LOVE 3", duration: 141, cover: "https://e-cdns-images.dzcdn.net/images/cover/1c7a1d3d3d3d3d3d3d3d3d3d3d3d3d3d/500x500-000000-80-0-0.jpg", youtubeId: "kTJczUoc26U" },
+            { id: 6, title: "Montero", artist: "Lil Nas X", album: "Montero", duration: 137, cover: "https://e-cdns-images.dzcdn.net/images/cover/7c8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a/500x500-000000-80-0-0.jpg", youtubeId: "6swmTBVI83k" },
+            { id: 7, title: "Peaches", artist: "Justin Bieber", album: "Justice", duration: 198, cover: "https://e-cdns-images.dzcdn.net/images/cover/8d9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a/500x500-000000-80-0-0.jpg", youtubeId: "tQ0yjYUFKAE" },
+            { id: 8, title: "Kiss Me More", artist: "Doja Cat ft. SZA", album: "Planet Her", duration: 208, cover: "https://e-cdns-images.dzcdn.net/images/cover/9e0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a/500x500-000000-80-0-0.jpg", youtubeId: "0EVVKs6DQLo" },
+            { id: 9, title: "Butter", artist: "BTS", album: "Butter", duration: 165, cover: "https://e-cdns-images.dzcdn.net/images/cover/a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p/500x500-000000-80-0-0.jpg", youtubeId: "WMweEpGlu_U" },
+            { id: 10, title: "Industry Baby", artist: "Lil Nas X", album: "Montero", duration: 212, cover: "https://e-cdns-images.dzcdn.net/images/cover/7c8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a/500x500-000000-80-0-0.jpg", youtubeId: "6swmTBVI83k" },
+            { id: 11, title: "Deja Vu", artist: "Olivia Rodrigo", album: "SOUR", duration: 215, cover: "https://e-cdns-images.dzcdn.net/images/cover/6e3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d/500x500-000000-80-0-0.jpg", youtubeId: "s2R2sH7_g7k" },
+            { id: 12, title: "Leave The Door Open", artist: "Silk Sonic", album: "An Evening with Silk Sonic", duration: 242, cover: "https://e-cdns-images.dzcdn.net/images/cover/b1c2d3e4f5g6h7i8j9k0l1m2n3o4p5q/500x500-000000-80-0-0.jpg", youtubeId: "adLGHcj_fmA" },
+            { id: 13, title: "Drivers License", artist: "Olivia Rodrigo", album: "SOUR", duration: 242, cover: "https://e-cdns-images.dzcdn.net/images/cover/6e3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d/500x500-000000-80-0-0.jpg", youtubeId: "ZmDBbnmKpqQ" },
+            { id: 14, title: "Positions", artist: "Ariana Grande", album: "Positions", duration: 172, cover: "https://e-cdns-images.dzcdn.net/images/cover/c1d2e3f4g5h6i7j8k9l0m1n2o3p4q5r/500x500-000000-80-0-0.jpg", youtubeId: "tcYodQoapMg" },
+            { id: 15, title: "Mood", artist: "24kGoldn ft. Iann Dior", album: "El Dorado", duration: 140, cover: "https://e-cdns-images.dzcdn.net/images/cover/d1e2f3g4h5i6j7k8l9m0n1o2p3q4r5s/500x500-000000-80-0-0.jpg", youtubeId: "GrAchTdepsU" },
+            { id: 16, title: "Dynamite", artist: "BTS", album: "Dynamite (Single)", duration: 199, cover: "https://e-cdns-images.dzcdn.net/images/cover/e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5t/500x500-000000-80-0-0.jpg", youtubeId: "gdZLi9oWNZg" },
+            { id: 17, title: "Don't Start Now", artist: "Dua Lipa", album: "Future Nostalgia", duration: 183, cover: "https://e-cdns-images.dzcdn.net/images/cover/5e0b2d2d2d2d2d2d2d2d2d2d2d2d2d2d/500x500-000000-80-0-0.jpg", youtubeId: "oygrmJFKYZY" },
+            { id: 18, title: "Watermelon Sugar", artist: "Harry Styles", album: "Fine Line", duration: 174, cover: "https://e-cdns-images.dzcdn.net/images/cover/f1g2h3i4j5k6l7m8n9o0p1q2r3s4t5u/500x500-000000-80-0-0.jpg", youtubeId: "E07s5ZYygMg" },
+            { id: 19, title: "Savage Love", artist: "Jason Derulo", album: "Savage Love (Single)", duration: 178, cover: "https://e-cdns-images.dzcdn.net/images/cover/g1h2i3j4k5l6m7n8o9p0q1r2s3t4u5v/500x500-000000-80-0-0.jpg", youtubeId: "gOgpdp3lP8M" },
+            { id: 20, title: "Break My Heart", artist: "Dua Lipa", album: "Future Nostalgia", duration: 221, cover: "https://e-cdns-images.dzcdn.net/images/cover/5e0b2d2d2d2d2d2d2d2d2d2d2d2d2d2d/500x500-000000-80-0-0.jpg", youtubeId: "Nj2U6rhnucI" },
+            { id: 21, title: "WAP", artist: "Cardi B ft. Megan Thee Stallion", album: "WAP (Single)", duration: 187, cover: "https://e-cdns-images.dzcdn.net/images/cover/h1i2j3k4l5m6n7o8p9q0r1s2t3u4v5w/500x500-000000-80-0-0.jpg", youtubeId: "hsm4poTWjMs" },
+            { id: 22, title: "Say So", artist: "Doja Cat", album: "Hot Pink", duration: 237, cover: "https://e-cdns-images.dzcdn.net/images/cover/i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x/500x500-000000-80-0-0.jpg", youtubeId: "pok8H_KF1FA" },
+            { id: 23, title: "Rain On Me", artist: "Lady Gaga & Ariana Grande", album: "Chromatica", duration: 181, cover: "https://e-cdns-images.dzcdn.net/images/cover/j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y/500x500-000000-80-0-0.jpg", youtubeId: "AoAm4om0wTs" },
+            { id: 24, title: "Savage", artist: "Megan Thee Stallion", album: "Suga", duration: 157, cover: "https://e-cdns-images.dzcdn.net/images/cover/k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z/500x500-000000-80-0-0.jpg", youtubeId: "K5G1FmU-tgU" },
+            { id: 25, title: "The Box", artist: "Roddy Ricch", album: "Please Excuse Me For Being Antisocial", duration: 196, cover: "https://e-cdns-images.dzcdn.net/images/cover/l1m2n3o4p5q6r7s8t9u0v1w2x3y4z5a/500x500-000000-80-0-0.jpg", youtubeId: "UNZqm3dxd2w" },
+            { id: 26, title: "Circles", artist: "Post Malone", album: "Hollywood's Bleeding", duration: 215, cover: "https://e-cdns-images.dzcdn.net/images/cover/m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b/500x500-000000-80-0-0.jpg", youtubeId: "wXhTHyIgQ_U" },
+            { id: 27, title: "Adore You", artist: "Harry Styles", album: "Fine Line", duration: 207, cover: "https://e-cdns-images.dzcdn.net/images/cover/f1g2h3i4j5k6l7m8n9o0p1q2r3s4t5u/500x500-000000-80-0-0.jpg", youtubeId: "VF-r5TtlT9w" },
+            { id: 28, title: "Rockstar", artist: "DaBaby ft. Roddy Ricch", album: "Blame It On Baby", duration: 193, cover: "https://e-cdns-images.dzcdn.net/images/cover/n1o2p3q4r5s6t7u8v9w0x1y2z3a4b5c/500x500-000000-80-0-0.jpg", youtubeId: "ml0tGdVM2Nk" },
+            { id: 29, title: "Intentions", artist: "Justin Bieber ft. Quavo", album: "Changes", duration: 210, cover: "https://e-cdns-images.dzcdn.net/images/cover/o1p2q3r4s5t6u7v8w9x0y1z2a3b4c5d/500x500-000000-80-0-0.jpg", youtubeId: "3AyMjyHu1bA" },
+            { id: 30, title: "Don't Rush", artist: "Young T & Bugsey ft. Headie One", album: "Plead the 5th", duration: 198, cover: "https://e-cdns-images.dzcdn.net/images/cover/p1q2r3s4t5u6v7w8x9y0z1a2b3c4d5e/500x500-000000-80-0-0.jpg", youtubeId: "J5O6vRNTd7s" },
+            { id: 31, title: "Roses", artist: "SAINt JHN", album: "Collection One", duration: 176, cover: "https://e-cdns-images.dzcdn.net/images/cover/q1r2s3t4u5v6w7x8y9z0a1b2c3d4e5f/500x500-000000-80-0-0.jpg", youtubeId: "2zToEPpFEN8" },
+            { id: 32, title: "Suge", artist: "DaBaby", album: "Baby on Baby", duration: 168, cover: "https://e-cdns-images.dzcdn.net/images/cover/r1s2t3u4v5w6x7y8z9a0b1c2d3e4f5g/500x500-000000-80-0-0.jpg", youtubeId: "nGt_JGHYEO4" },
+            { id: 33, title: "Life Is Good", artist: "Future ft. Drake", album: "High Off Life", duration: 232, cover: "https://e-cdns-images.dzcdn.net/images/cover/s1t2u3v4w5x6y7z8a9b0c1d2e3f4g5h/500x500-000000-80-0-0.jpg", youtubeId: "l0U7SxXHkPY" },
+            { id: 34, title: "Toosie Slide", artist: "Drake", album: "Dark Lane Demo Tapes", duration: 247, cover: "https://e-cdns-images.dzcdn.net/images/cover/t1u2v3w4x5y6z7a8b9c0d1e2f3g4h5i/500x500-000000-80-0-0.jpg", youtubeId: "xWggTb45brM" },
+            { id: 35, title: "Blueberry Faygo", artist: "Lil Mosey", album: "Certified Hitmaker", duration: 164, cover: "https://e-cdns-images.dzcdn.net/images/cover/u1v2w3x4y5z6a7b8c9d0e1f2g3h4i5j/500x500-000000-80-0-0.jpg", youtubeId: "4I0DfGm5iKQ" },
+            { id: 36, title: "The Scotts", artist: "THE SCOTTS, Travis Scott, Kid Cudi", album: "THE SCOTTS", duration: 176, cover: "https://e-cdns-images.dzcdn.net/images/cover/v1w2x3y4z5a6b7c8d9e0f1g2h3i4j5k/500x500-000000-80-0-0.jpg", youtubeId: "wsdy_rcteKQ" },
+            { id: 37, title: "Go Crazy", artist: "Chris Brown & Young Thug", album: "Slime & B", duration: 179, cover: "https://e-cdns-images.dzcdn.net/images/cover/w1x2y3z4a5b6c7d8e9f0g1h2i3j4k5l/500x500-000000-80-0-0.jpg", youtubeId: "x0lG3lzO0y0" },
+            { id: 38, title: "Laugh Now Cry Later", artist: "Drake ft. Lil Durk", album: "Certified Lover Boy", duration: 261, cover: "https://e-cdns-images.dzcdn.net/images/cover/x1y2z3a4b5c6d7e8f9g0h1i2j3k4l5m/500x500-000000-80-0-0.jpg", youtubeId: "JFm7YDVlqnI" },
+            { id: 39, title: "Popstar", artist: "DJ Khaled ft. Drake", album: "Popstar (Single)", duration: 222, cover: "https://e-cdns-images.dzcdn.net/images/cover/y1z2a3b4c5d6e7f8g9h0i1j2k3l4m5n/500x500-000000-80-0-0.jpg", youtubeId: "vGJTaP6anOU" },
+            { id: 40, title: "For The Night", artist: "Pop Smoke ft. Lil Baby & DaBaby", album: "Shoot For The Stars Aim For The Moon", duration: 190, cover: "https://e-cdns-images.dzcdn.net/images/cover/z1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o/500x500-000000-80-0-0.jpg", youtubeId: "vA8q4qE4F0g" },
+            { id: 41, title: "Dior", artist: "Pop Smoke", album: "Meet The Woo", duration: 183, cover: "https://e-cdns-images.dzcdn.net/images/cover/a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p/500x500-000000-80-0-0.jpg", youtubeId: "R6r6y0WZB00" },
+            { id: 42, title: "BOP", artist: "DaBaby", album: "Kirk", duration: 165, cover: "https://e-cdns-images.dzcdn.net/images/cover/b1c2d3e4f5g6h7i8j9k0l1m2n3o4p5q/500x500-000000-80-0-0.jpg", youtubeId: "7C2z0G8Jp0E" },
+            { id: 43, title: "WHATS POPPIN", artist: "Jack Harlow", album: "Sweet Action", duration: 163, cover: "https://e-cdns-images.dzcdn.net/images/cover/c1d2e3f4g5h6i7j8k9l0m1n2o3p4q5r/500x500-000000-80-0-0.jpg", youtubeId: "HIwAI05Y1fU" },
+            { id: 44, title: "ROCKSTAR", artist: "DaBaby ft. Roddy Ricch", album: "Blame It On Baby", duration: 193, cover: "https://e-cdns-images.dzcdn.net/images/cover/d1e2f3g4h5i6j7k8l9m0n1o2p3q4r5s/500x500-000000-80-0-0.jpg", youtubeId: "ml0tGdVM2Nk" },
+            { id: 45, title: "SICKO MODE", artist: "Travis Scott", album: "ASTROWORLD", duration: 312, cover: "https://e-cdns-images.dzcdn.net/images/cover/e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5t/500x500-000000-80-0-0.jpg", youtubeId: "6ONRf7h3Mdk" },
+            { id: 46, title: "God's Plan", artist: "Drake", album: "Scorpion", duration: 199, cover: "https://e-cdns-images.dzcdn.net/images/cover/f1g2h3i4j5k6l7m8n9o0p1q2r3s4t5u/500x500-000000-80-0-0.jpg", youtubeId: "xpVfcZ0ZcFM" },
+            { id: 47, title: "Nice For What", artist: "Drake", album: "Scorpion", duration: 210, cover: "https://e-cdns-images.dzcdn.net/images/cover/g1h2i3j4k5l6m7n8o9p0q1r2s3t4u5v/500x500-000000-80-0-0.jpg", youtubeId: "U9BwWKXjVaI" },
+            { id: 48, title: "In My Feelings", artist: "Drake", album: "Scorpion", duration: 217, cover: "https://e-cdns-images.dzcdn.net/images/cover/h1i2j3k4l5m6n7o8p9q0r1s2t3u4v5w/500x500-000000-80-0-0.jpg", youtubeId: "DRS_PpOrUZ4" },
+            { id: 49, title: "One Dance", artist: "Drake ft. Wizkid & Kyla", album: "Views", duration: 173, cover: "https://e-cdns-images.dzcdn.net/images/cover/i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x/500x500-000000-80-0-0.jpg", youtubeId: "iAbnEUA0wpA" },
+            { id: 50, title: "Hotline Bling", artist: "Drake", album: "Views", duration: 267, cover: "https://e-cdns-images.dzcdn.net/images/cover/j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y/500x500-000000-80-0-0.jpg", youtubeId: "uxpDa-c-4Mc" }
         ];
         
         // DOM Elements
@@ -646,6 +754,8 @@
         const volumeBar = document.getElementById('volumeBar');
         const volumeLevel = document.getElementById('volumeLevel');
         const playerScreen = document.getElementById('playerScreen');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const visualizer = document.getElementById('visualizer');
         
         // Player state
         let currentTrackIndex = 0;
@@ -653,8 +763,28 @@
         let player;
         let progressInterval;
         
+        // Create visualizer bars
+        function createVisualizer() {
+            visualizer.innerHTML = '';
+            const barCount = 30;
+            const containerWidth = visualizer.clientWidth;
+            const barWidth = containerWidth / barCount;
+            
+            for (let i = 0; i < barCount; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.left = `${i * barWidth}px`;
+                bar.style.width = `${barWidth - 2}px`;
+                bar.style.animationDelay = `${Math.random() * 1.5}s`;
+                visualizer.appendChild(bar);
+            }
+        }
+        
         // Initialize the player
         function initPlayer() {
+            // Create visualizer
+            createVisualizer();
+            
             // Create playlist
             renderPlaylist();
             
@@ -669,6 +799,12 @@
             repeatBtn.addEventListener('click', toggleRepeat);
             progressBar.addEventListener('click', setProgress);
             volumeBar.addEventListener('click', setVolume);
+            
+            // Hide loading after delay
+            setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+                loadTrack(0);
+            }, 3000);
         }
         
         // Load YouTube API
@@ -719,7 +855,7 @@
                 
                 trackItem.innerHTML = `
                     <div class="track-item-img">
-                        <img src="${track.cover}" alt="${track.title}">
+                        <img src="${track.cover}" alt="${track.title}" class="slow-fade-in">
                     </div>
                     <div class="track-item-info">
                         <div class="track-item-title">${track.title}</div>
@@ -729,10 +865,15 @@
                 `;
                 
                 trackItem.addEventListener('click', () => {
-                    currentTrackIndex = index;
-                    loadTrack(currentTrackIndex);
-                    renderPlaylist();
-                    playTrack();
+                    // Show loading for cover art
+                    albumArtImg.style.opacity = '0';
+                    
+                    setTimeout(() => {
+                        currentTrackIndex = index;
+                        loadTrack(currentTrackIndex);
+                        renderPlaylist();
+                        playTrack();
+                    }, 300);
                 });
                 
                 trackList.appendChild(trackItem);
@@ -747,7 +888,13 @@
             currentTitle.textContent = track.title;
             currentArtist.textContent = track.artist;
             currentAlbum.textContent = track.album;
+            
+            // Load album art with slow fade
             albumArtImg.src = track.cover;
+            albumArtImg.style.opacity = '0';
+            setTimeout(() => {
+                albumArtImg.style.opacity = '1';
+            }, 100);
             
             // Format and set duration
             const minutes = Math.floor(track.duration / 60);
@@ -891,7 +1038,6 @@
             // Initialize player if not already done
             if (!player) {
                 initPlayer();
-                loadTrack(0);
             }
         }
         
